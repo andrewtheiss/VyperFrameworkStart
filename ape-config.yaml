@@ -1,0 +1,19 @@
+name: vyper-framework-startup
+
+contracts_folder: contracts
+
+plugins:
+  - name: vyper
+  - name: foundry
+  - name: alchemy
+
+compiler:
+  vyper:
+    settings:
+      evm_version: "paris"
+      optimize: true
+
+test:
+  mnemonic: test test test test test test test test test test test junk
+  number_of_accounts: 10
+  balance: 10_000 ETH
