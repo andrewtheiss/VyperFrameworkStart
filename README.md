@@ -1,4 +1,4 @@
-# vyperFrameworkStartup
+# Vyper with Ape FrameworkStart Code
 
 A minimal, working starter for writing **Vyper 0.4.3** smart contracts with the
 **Ape Framework**. Includes one example contract, passing tests, and a deploy
