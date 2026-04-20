@@ -1,0 +1,32 @@
+{
+  "name": "vyper-framework-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "abis": "node scripts/generate-abis.mjs",
+    "abis:watch": "node scripts/generate-abis.mjs --watch",
+    "dev": "concurrently -n abis,vite -c blue,magenta \"npm run abis:watch\" \"vite\"",
+    "prebuild": "npm run abis",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.0",
+    "@tanstack/react-query": "^5.60.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "viem": "^2.21.0",
+    "wagmi": "^2.14.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "chokidar": "^4.0.1",
+    "concurrently": "^9.1.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.1"
+  }
+}
