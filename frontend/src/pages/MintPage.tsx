@@ -750,6 +750,28 @@ function GraphicCard({
     query: { enabled: !recipientHint },
   })
 
+  // Log whenever on-chain reads resolve so it's obvious in the console what
+  // came back from each clone (or what didn't).
+  useEffect(() => {
+    if (bytesHex === undefined) return
+    const hex = bytesHex as string
+    const byteCount = (hex.length - 2) / 2
+    // eslint-disable-next-line no-console
+    console.log(
+      `%c[NFT image] clone=${clone} fetched getImageData() → ${byteCount} bytes` +
+        (typeof format === 'string' ? ` · format=${format}` : ''),
+      'color:#9fb4ff',
+      {
+        byteCount,
+        format,
+        title,
+        dims,
+        hexPrefix: hex.slice(0, 18),
+        hexSuffix: hex.length > 24 ? hex.slice(-6) : '',
+      },
+    )
+  }, [clone, bytesHex, format, title, dims])
+
   return (
     <div className="card">
       <GraphicCardInner
@@ -787,27 +809,69 @@ function GraphicCardInner({
   description: string | undefined
   dims: readonly [bigint, bigint] | undefined
 }) {
+  const bytesLen = bytesHex ? (bytesHex.length - 2) / 2 : 0
+
   const url = useMemo(() => {
     if (!bytesHex || !format) return null
+    if (bytesLen === 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[NFT image] clone=${clone} returned 0 bytes — nothing to render. ` +
+          `format=${format}. Check that the contract actually holds image data.`,
+      )
+      return null
+    }
     const src = hexToBytes(bytesHex)
     const buf = new ArrayBuffer(src.byteLength)
     new Uint8Array(buf).set(src)
     const blob = new Blob([buf], { type: `image/${format}` })
-    return URL.createObjectURL(blob)
-  }, [bytesHex, format])
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
+    const objectUrl = URL.createObjectURL(blob)
+    // eslint-disable-next-line no-console
+    console.log(
+      `%c[NFT image] clone=${clone} blob ready — ${blob.size} B (type=${blob.type})`,
+      'color:#8fd19e',
+      { url: objectUrl, blobSize: blob.size, bytesLen, format },
+    )
+    return objectUrl
+  }, [bytesHex, format, bytesLen, clone])
+  useEffect(() => {
+    return () => {
+      if (url) {
+        // eslint-disable-next-line no-console
+        console.debug(`[NFT image] revoking blob URL for clone=${clone}`, url)
+        URL.revokeObjectURL(url)
+      }
+    }
+  }, [url, clone])
 
   const { chain } = useAccount()
   const addrUrl = explorerAddressUrl(chain, clone)
   const recipientUrl = recipientHint ? explorerAddressUrl(chain, recipientHint) : undefined
   const [w, h] = dims ?? [0n, 0n]
-  const bytesLen = bytesHex ? (bytesHex.length - 2) / 2 : 0
 
   return (
     <>
       <div className="card-img">
         {url ? (
-          <img src={url} alt={title ?? 'token'} />
+          <img
+            src={url}
+            alt={title ?? 'token'}
+            onLoad={() => {
+              // eslint-disable-next-line no-console
+              console.debug(
+                `[NFT image] clone=${clone} rendered ok (${bytesLen} B, ${format})`,
+              )
+            }}
+            onError={(e) => {
+              // eslint-disable-next-line no-console
+              console.error(
+                `[NFT image] clone=${clone} <img> failed to load — likely stale blob URL, corrupt bytes, or a MIME the browser can't decode`,
+                { url, bytesLen, format, event: e.nativeEvent },
+              )
+            }}
+          />
+        ) : bytesHex !== undefined && bytesLen === 0 ? (
+          <div className="card-loading">no image data on chain</div>
         ) : (
           <div className="card-loading">loading…</div>
         )}

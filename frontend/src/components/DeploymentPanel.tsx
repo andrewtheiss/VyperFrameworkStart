@@ -17,19 +17,24 @@ import {
 import {
   autoCsvFor,
   currentFocus,
-  deploymentPlan,
   findAlternativeContaining,
   findStep,
   flattenSteps,
+  getUncategorizedContracts,
   orderedContractNames,
+  samplePlaceholderFor,
+  schemaHintFor,
   statusOf,
   topoSort,
   type AtomicStep,
+  type DeploymentCategory,
   type StepStatus,
 } from '../contracts/deploymentPlan'
+import { useActiveCategory } from '../contracts/useActiveCategory'
 import { explorerAddressUrl, explorerName, explorerTxUrl } from '../utils/explorer'
 import { DeploymentFlowDiagram } from './DeploymentFlowDiagram'
 import { DeploymentProgress } from './DeploymentProgress'
+import { CategoryGrid, CategorySwitcher, ComingSoonView } from './CategoryNav'
 
 type DeployState = {
   status: 'idle' | 'pending' | 'mining' | 'done' | 'error'
@@ -48,7 +53,32 @@ function constructorInputsOf(abi: Abi) {
   return c.inputs ?? []
 }
 
+// Top-level dispatcher: no category → grid; coming-soon → placeholder; else deploy view.
 export function DeploymentPanel() {
+  const [, activeCategory, setActive] = useActiveCategory()
+
+  if (!activeCategory) {
+    return <CategoryGrid onPick={(id) => setActive(id)} />
+  }
+
+  if (activeCategory.status === 'coming-soon') {
+    return (
+      <>
+        <CategorySwitcher active={activeCategory.id} onSwitch={setActive} />
+        <ComingSoonView category={activeCategory} />
+      </>
+    )
+  }
+
+  return (
+    <>
+      <CategorySwitcher active={activeCategory.id} onSwitch={setActive} />
+      <CategoryDeployView category={activeCategory} />
+    </>
+  )
+}
+
+function CategoryDeployView({ category }: { category: DeploymentCategory }) {
   const { address: account, chain } = useAccount()
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
@@ -57,6 +87,7 @@ export function DeploymentPanel() {
   const [overrides, setOverrides] = useState<Record<string, UserOverrides>>({})
   const [deployStates, setDeployStates] = useState<Record<string, DeployState>>({})
   const [busy, setBusy] = useState(false)
+  const [manualDrafts, setManualDrafts] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const refresh = () => setExisting(getAllDeployments(chain?.id))
@@ -69,12 +100,7 @@ export function DeploymentPanel() {
     }
   }, [chain?.id])
 
-  // Per-row draft state for "set address manually" input (row name -> draft).
-  const [manualDrafts, setManualDrafts] = useState<Record<string, string>>({})
-
-  // Reset panel state on chain change AND resume any pending receipts for
-  // this chain. When the user navigates away mid-mine, the component unmounts
-  // and its waitForTransactionReceipt promise is orphaned; we re-attach here.
+  // Reset panel state on chain change AND resume any pending receipts.
   useEffect(() => {
     setOverrides({})
     setDeployStates({})
@@ -86,7 +112,6 @@ export function DeploymentPanel() {
     const entries = Object.entries(pending)
     if (entries.length === 0) return
 
-    // Show them as mining immediately while we poll.
     const resumeStates: Record<string, DeployState> = {}
     for (const [name, info] of entries) {
       resumeStates[name] = {
@@ -133,9 +158,6 @@ export function DeploymentPanel() {
         })
         .catch((e) => {
           if (cancelled) return
-          // Timeout or dropped tx. Leave the pending entry so the user can
-          // retry via "check now" — if it's truly dropped, they'll clear it
-          // manually or set the address by hand.
           setDeployStates((s) => ({
             ...s,
             [name]: {
@@ -151,11 +173,22 @@ export function DeploymentPanel() {
     }
   }, [chain?.id, publicClient])
 
-  const ordered = useMemo(() => orderedContractNames(), [])
-  const focus = useMemo(() => currentFocus(existing), [existing])
+  // Contracts relevant to this category, in plan order.
+  const ordered = useMemo(() => orderedContractNames(category.steps), [category])
+  // "Other" rows shown only under Misc so that newly-added .vy files surface somewhere.
+  const otherNames = useMemo(
+    () => (category.id === 'misc' ? getUncategorizedContracts() : []),
+    [category.id],
+  )
+  const allRowNames = useMemo(() => [...ordered, ...otherNames], [ordered, otherNames])
+
+  const focus = useMemo(
+    () => currentFocus(existing, category.steps),
+    [existing, category],
+  )
 
   const rows = useMemo(() => {
-    return ordered.map((name) => {
+    return allRowNames.map((name) => {
       const o = overrides[name] ?? {}
       const step = findStep(name)
       const stat = statusOf(name, existing)
@@ -176,7 +209,7 @@ export function DeploymentPanel() {
         deploy: deployStates[name] ?? EMPTY_DEPLOY,
       }
     })
-  }, [ordered, overrides, deployStates, existing, focus])
+  }, [allRowNames, overrides, deployStates, existing, focus])
 
   const rowsByName = useMemo(() => {
     const m: Record<string, (typeof rows)[number]> = {}
@@ -184,7 +217,10 @@ export function DeploymentPanel() {
     return m
   }, [rows])
 
-  const plannedNames = useMemo(() => new Set(flattenSteps().map((s) => s.name)), [])
+  const plannedNames = useMemo(
+    () => new Set(flattenSteps(category.steps).map((s) => s.name)),
+    [category],
+  )
   const unplannedRows = rows.filter((r) => !plannedNames.has(r.name))
 
   const patchOverride = (name: string, p: Partial<UserOverrides>) =>
@@ -198,7 +234,6 @@ export function DeploymentPanel() {
   const patchDeploy = (name: string, p: Partial<DeployState>) =>
     setDeployStates((s) => ({ ...s, [name]: { ...(s[name] ?? EMPTY_DEPLOY), ...p } }))
 
-  // Radio-like: ticking an alternative option unticks its siblings.
   const onSelect = (name: ContractName, v: boolean) => {
     patchOverride(name, { selected: v })
     if (v) {
@@ -214,7 +249,7 @@ export function DeploymentPanel() {
   const deploySelected = async () => {
     if (!walletClient || !publicClient || !account || !chain) return
     const selected = rows.filter((r) => r.selected).map((r) => r.name as ContractName)
-    const order = topoSort(selected)
+    const order = topoSort(selected, category.steps)
     if (order.length === 0) return
 
     setBusy(true)
@@ -254,8 +289,6 @@ export function DeploymentPanel() {
             args: parsedArgs as never,
             account,
           })
-          // Persist the tx hash so we can resume polling if the user tab-
-          // switches or reloads before the receipt arrives.
           setPending(chain.id, name, hash)
           patchDeploy(name, { status: 'mining', statusMessage: 'mining…', txHash: hash })
 
@@ -284,8 +317,6 @@ export function DeploymentPanel() {
           })
           clearOverride(name, 'selected')
         } catch (e) {
-          // If we have a hash, pending stays set so the user can "check now"
-          // later. Otherwise clear to avoid a ghost pending entry.
           if (!hash) clearPending(chain.id, name)
           patchDeploy(name, {
             status: 'error',
@@ -299,8 +330,6 @@ export function DeploymentPanel() {
     }
   }
 
-  // Manual receipt check — useful when the tx actually mined but our
-  // polling state got orphaned or the RPC is slow.
   const checkTx = async (name: string) => {
     if (!chain || !publicClient) return
     const pending = getPending(chain.id, name)
@@ -335,7 +364,6 @@ export function DeploymentPanel() {
         clearOverride(name, 'selected')
       }
     } catch (e) {
-      // viem throws TransactionReceiptNotFoundError when the tx isn't mined yet.
       const msg = (e as Error).message
       if (/not\s*found|receipt/i.test(msg)) {
         patchDeploy(name, {
@@ -349,8 +377,6 @@ export function DeploymentPanel() {
     }
   }
 
-  // Manual address entry — used when the user knows the contract was deployed
-  // but the UI state is stale or the tx was sent outside our flow.
   const openManual = (name: string) => setManualDrafts((d) => ({ ...d, [name]: '' }))
   const updateManual = (name: string, v: string) =>
     setManualDrafts((d) => ({ ...d, [name]: v }))
@@ -397,21 +423,20 @@ export function DeploymentPanel() {
 
   return (
     <section className="panel">
-      <h2>Deploy contracts</h2>
+      <h2>Deploy · {category.label}</h2>
       {!chain ? (
         <p className="hint">Connect a wallet to deploy.</p>
       ) : (
         <p className="hint">
           Deploying from <code>{account}</code> to <strong>{chain.name}</strong>. The next
-          required step is auto-checked; dependent args auto-fill from prior deploys. You
-          can override anything by clicking the row.
+          required step is auto-checked; dependent args auto-fill from prior deploys.
         </p>
       )}
 
       <DeploymentFlowDiagram active={busy} />
 
       <div className="deploy-sticky">
-        <DeploymentProgress existing={existing} focus={focus} />
+        <DeploymentProgress existing={existing} focus={focus} steps={category.steps} />
         <button
           className="deploy-btn-primary"
           disabled={!canDeploy}
@@ -421,10 +446,10 @@ export function DeploymentPanel() {
         </button>
       </div>
 
-      {deploymentPlan.length > 0 && (
+      {category.steps.length > 0 && (
         <div className="group">
           <div className="group-header">
-            <h3>App setup</h3>
+            <h3>{category.label} setup</h3>
             <p className="hint">Deploy in order. The next step auto-selects as each lands.</p>
           </div>
           <table className="deploy-table">
@@ -438,7 +463,7 @@ export function DeploymentPanel() {
               </tr>
             </thead>
             <tbody>
-              {deploymentPlan.map((step) => {
+              {category.steps.map((step) => {
                 if (step.kind === 'atomic') {
                   const row = rowsByName[step.name]
                   if (!row) return null
@@ -465,14 +490,15 @@ export function DeploymentPanel() {
                     />
                   )
                 }
-                // Alternative — header, options, OR divider.
                 return (
                   <Fragment key={step.id}>
                     <tr className="alt-header">
                       <td colSpan={5}>
                         <div className="alt-header-body">
                           <strong>{step.label}</strong>
-                          {step.description && <span className="hint"> · {step.description}</span>}
+                          {step.description && (
+                            <span className="hint"> · {step.description}</span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -523,7 +549,10 @@ export function DeploymentPanel() {
         <div className="group">
           <div className="group-header">
             <h3>Other contracts</h3>
-            <p className="hint">Unrelated to the main app flow — deploy manually if needed.</p>
+            <p className="hint">
+              Found in your generated ABIs but not placed in a category — deploy manually if
+              needed.
+            </p>
           </div>
           <table className="deploy-table">
             <thead>
@@ -562,7 +591,6 @@ export function DeploymentPanel() {
           </table>
         </div>
       )}
-
     </section>
   )
 }
@@ -667,25 +695,29 @@ function ContractRow({
         {row.inputs.length === 0 ? (
           <span className="hint">no args</span>
         ) : (
-          <>
+          <div className="csv-field">
             <input
               type="text"
               className="csv-input"
-              placeholder={row.inputs.map((i) => `${i.name ?? '_'}:${i.type}`).join(', ')}
+              placeholder={samplePlaceholderFor(row.name as ContractName, row.inputs)}
               value={row.csvArgs}
               disabled={busy}
               onChange={(e) => onCsv(row.name, e.target.value)}
+              title={schemaHintFor(row.inputs)}
             />
-            {row.csvOverridden && row.csvArgs !== row.autoCsv && row.autoCsv && (
-              <button
-                className="linklike"
-                disabled={busy}
-                onClick={() => onResetCsv(row.name)}
-              >
-                reset to auto
-              </button>
-            )}
-          </>
+            <div className="csv-schema">
+              <span className="mono">{schemaHintFor(row.inputs)}</span>
+              {row.csvOverridden && row.csvArgs !== row.autoCsv && row.autoCsv && (
+                <button
+                  className="linklike"
+                  disabled={busy}
+                  onClick={() => onResetCsv(row.name)}
+                >
+                  reset to auto
+                </button>
+              )}
+            </div>
+          </div>
         )}
       </td>
       <td>

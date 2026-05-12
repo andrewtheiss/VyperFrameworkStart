@@ -155,6 +155,173 @@ button:disabled {
   margin-top: 0.75rem;
 }
 
+/* ---------- Category grid (pre-pick) ------------------------------------- */
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.category-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0.45rem;
+  padding: 1.15rem 1.1rem 1rem;
+  background: #11131a;
+  border: 1px solid #242a36;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, transform 120ms ease;
+  color: inherit;
+  font: inherit;
+}
+
+.category-card:hover {
+  border-color: #2a72ff55;
+  background: #141826;
+  transform: translateY(-1px);
+}
+
+.category-card.coming { opacity: 0.8; }
+.category-card.coming:hover { border-color: #4a3c1e; }
+
+.category-icon {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9fb4ff;
+  margin-bottom: 0.1rem;
+}
+.category-card.coming .category-icon { color: #ffcc66; }
+.category-icon svg { width: 100%; height: 100%; }
+
+.category-label {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #e6e8ee;
+}
+
+.category-tagline {
+  font-size: 0.85rem;
+  color: #c7cddb;
+  margin: 0;
+}
+
+.category-desc {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin: 0.2rem 0 0;
+}
+
+.category-meta {
+  margin-top: 0.45rem;
+  font-size: 0.76rem;
+  color: #8a93a6;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- Category switcher (pill row) --------------------------------- */
+
+.category-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.switcher-label {
+  color: #8a93a6;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.switcher-pills {
+  display: inline-flex;
+  gap: 0.3rem;
+  padding: 3px;
+  background: #11131a;
+  border: 1px solid #242a36;
+  border-radius: 999px;
+}
+
+.switcher-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  color: #8a93a6;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  border: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+.switcher-pill:hover { color: #e6e8ee; }
+.switcher-pill.active {
+  background: #2a72ff;
+  color: white;
+}
+.switcher-pill.active .switcher-pill-icon { color: white; }
+
+.switcher-pill-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  color: #9fb4ff;
+}
+.switcher-pill.coming .switcher-pill-icon { color: #ffcc66; }
+.switcher-pill-icon svg { width: 100%; height: 100%; }
+
+.switcher-pill-tag {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #ffcc66;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid #4a3c1e;
+  border-radius: 4px;
+  background: #1f1a0f;
+}
+.switcher-pill.active .switcher-pill-tag {
+  color: #fff3b8;
+  border-color: #ffeba3;
+  background: rgba(255, 204, 102, 0.22);
+}
+
+/* ---------- Coming-soon placeholder -------------------------------------- */
+
+.coming-soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.5rem 1rem 2rem;
+  gap: 0.4rem;
+}
+
+.coming-icon {
+  width: 64px;
+  height: 64px;
+  color: #ffcc66;
+  margin-bottom: 0.25rem;
+}
+
+.coming-hint {
+  max-width: 46ch;
+  margin-top: 0.75rem;
+}
+
 /* ---------- Deployment flow diagram -------------------------------------- */
 
 .flow {
@@ -728,6 +895,31 @@ button:disabled {
   font-size: 0.85rem;
 }
 
+.csv-input::placeholder {
+  color: #4a5468;
+}
+
+.csv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.csv-schema {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.7rem;
+  color: #6b7285;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.01em;
+}
+
+.csv-schema .mono {
+  color: #6b7285;
+}
+
 .status {
   font-size: 0.85rem;
 }
@@ -1022,6 +1214,90 @@ button:disabled {
 .card-addr {
   font-size: 0.78rem;
   color: #8a93a6;
+}
+
+/* ---------- CoinPanel ----------------------------------------------------- */
+
+.coin-symbol {
+  color: #8a93a6;
+  font-weight: 500;
+  font-size: 0.85em;
+  margin-left: 0.1em;
+}
+
+.coin-header-meta {
+  margin-top: 0.4rem;
+}
+
+.coin-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.coin-meta dt {
+  color: #8a93a6;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  align-self: center;
+}
+
+.coin-meta dd {
+  margin: 0;
+  color: #c7cddb;
+}
+
+.coin-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+@media (max-width: 640px) {
+  .coin-form { grid-template-columns: 1fr; }
+}
+
+.coin-form-inline {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.lock-btn {
+  background: #8a4a2a;
+}
+.lock-btn:hover:not(:disabled) { background: #a6573a; }
+
+.holders-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.holders-table th,
+.holders-table td {
+  padding: 0.6rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #1e2430;
+}
+
+.holders-table th {
+  color: #8a93a6;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+
+.balance-display {
+  font-size: 1.75rem;
+  margin: 0.5rem 0;
 }
 
 .card-owner {

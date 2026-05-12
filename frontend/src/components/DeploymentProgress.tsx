@@ -3,7 +3,6 @@ import type { Address } from 'viem'
 import {
   deploymentPlan,
   type AlternativeStep,
-  type AtomicStep,
   type PlanStep,
 } from '../contracts/deploymentPlan'
 import type { ContractName } from '../abis'
@@ -42,7 +41,6 @@ function classify(
       sub: depsMet ? 'ready' : `waiting on ${step.dependsOn?.[0]?.contract ?? 'prev'}`,
     }
   }
-  // alternative
   const alt = step as AlternativeStep
   const deployedOpt = alt.options.find((o) => !!existing[o.name])
   if (deployedOpt) {
@@ -64,18 +62,23 @@ function classify(
     key: alt.id,
     title: titleOf(step),
     status: depsMet ? 'upcoming' : 'blocked',
-    sub: depsMet ? 'choose one' : `waiting on ${alt.options[0].dependsOn?.[0]?.contract ?? 'prev'}`,
+    sub: depsMet
+      ? 'choose one'
+      : `waiting on ${alt.options[0].dependsOn?.[0]?.contract ?? 'prev'}`,
   }
 }
 
 export function DeploymentProgress({
   existing,
   focus,
+  steps = deploymentPlan,
 }: {
   existing: Readonly<Record<string, Address | undefined>>
   focus: ContractName | undefined
+  steps?: PlanStep[]
 }) {
-  const views = deploymentPlan.map((s) => classify(s, existing, focus))
+  if (steps.length === 0) return null
+  const views = steps.map((s) => classify(s, existing, focus))
 
   return (
     <ol className="progress-stepper" aria-label="Deployment progress">
@@ -161,6 +164,3 @@ function HollowCircle(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
-
-// Silence TS unused-import warning when PlanStep/AtomicStep types aren't read at runtime.
-void ({} as AtomicStep)
